@@ -1,5 +1,7 @@
 require("dotenv").config();
 
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const TelegramBot = require("node-telegram-bot-api");
 const fs = require("fs");
 const axios = require("axios");
@@ -191,42 +193,75 @@ bot.on("photo", async (msg) => {
 
   if (!sessions[chatId]) return;
 
-  if (
-    sessions[chatId].step !==
-    "WAITING_PHOTO"
-  ) {
-    return;
-  }
+  // ==========================
+  // MOTION CONTROL PHOTO
+  // ==========================
+  if (sessions[chatId].step === "WAITING_PHOTO") {
+    const photo = msg.photo[msg.photo.length - 1];
+    sessions[chatId].photo = photo.file_id;
+    sessions[chatId].step = "WAITING_RATIO";
 
-  const photo =
-    msg.photo[msg.photo.length - 1];
-
-  sessions[chatId].photo =
-    photo.file_id;
-
-  sessions[chatId].step =
-    "WAITING_RATIO";
-
-  return bot.sendMessage(
-    chatId,
-    "📐 Pilih ukuran video:",
-    {
+    return bot.sendMessage(chatId, "📐 Pilih ukuran video:", {
       reply_markup: {
         inline_keyboard: [
           [
-            {
-              text: "9:16",
-              callback_data: "ratio_9_16",
-            },
-            {
-              text: "16:9",
-              callback_data: "ratio_16_9",
-            },
+            { text: "9:16", callback_data: "ratio_9_16" },
+            { text: "16:9", callback_data: "ratio_16_9" },
           ],
         ],
       },
+    });
+  }
+
+  // ==========================
+  // IMAGE GENERATE PHOTO
+  // ==========================
+  if (sessions[chatId].step === "WAITING_REF_PHOTO") {
+    const photo = msg.photo[msg.photo.length - 1];
+    const fileLink = await bot.getFileLink(photo.file_id);
+
+    sessions[chatId].step = null;
+
+    await bot.sendMessage(chatId, "⏳ Generating image...");
+
+    try {
+      const imgRes = await axios.get(fileLink, { responseType: "arraybuffer" });
+      const base64Image = Buffer.from(imgRes.data).toString("base64");
+
+      const model = genai.getGenerativeModel({ model: "gemini-2.0-flash-preview-image-generation" });
+
+      const result = await model.generateContent([
+        {
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: base64Image,
+          },
+        },
+        {
+          text: `Generate an image of this exact character. Keep the face, skin tone, hair, and style exactly the same. Only change based on this prompt: ${sessions[chatId].prompt}`,
+        },
+      ]);
+
+      const parts = result.response.candidates[0].content.parts;
+      for (const part of parts) {
+        if (part.inlineData) {
+          const imgBuffer = Buffer.from(part.inlineData.data, "base64");
+          const imgPath = `/tmp/generated_${chatId}.png`;
+          fs.writeFileSync(imgPath, imgBuffer);
+
+          await bot.sendPhoto(chatId, fs.createReadStream(imgPath), {
+            caption: "🖼 Gambar berhasil dibuat!",
+          });
+
+          fs.unlinkSync(imgPath);
+          break;
+        }
+      }
+    } catch (err) {
+      console.log("IMAGE GEN ERROR:", err.message);
+      bot.sendMessage(chatId, "❌ Gagal generate gambar.");
     }
-  );
+  }
 });
 
 bot.on("video", async (msg) => {
@@ -543,19 +578,14 @@ bot.on("message", async (msg) => {
   // ==========================
 
   if (sessions[chatId].step === "WAITING_PROMPT") {
-    sessions[chatId].prompt = msg.text;
+  sessions[chatId].prompt = msg.text;
+  sessions[chatId].step = "WAITING_REF_PHOTO";
 
-    sessions[chatId].step = null;
-
-    return bot.sendMessage(
-      chatId,
-      `🖼 Prompt diterima:
-
-${msg.text}
-
-⏳ Generating image...`
-    );
-  }
+  return bot.sendMessage(
+    chatId,
+    "📸 Kirim foto referensi karakter."
+  );
+}
 
   // ==========================
   // UPDATE API KEY
