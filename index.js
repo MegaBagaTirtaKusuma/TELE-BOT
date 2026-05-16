@@ -549,7 +549,7 @@ bot.on("message", async (msg) => {
     const imgRes = await axios.get(sessions[chatId].refPhoto, { responseType: "arraybuffer" });
     const base64Image = Buffer.from(imgRes.data).toString("base64");
 
-    const model = genai.getGenerativeModel({ model: "gemini-2.0-flash-preview-image-generation" });
+    const model = genai.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
     const result = await model.generateContent([
       { inlineData: { mimeType: "image/jpeg", data: base64Image } },
