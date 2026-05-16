@@ -220,47 +220,9 @@ bot.on("photo", async (msg) => {
     const photo = msg.photo[msg.photo.length - 1];
     const fileLink = await bot.getFileLink(photo.file_id);
 
-    sessions[chatId].step = null;
-
-    await bot.sendMessage(chatId, "⏳ Generating image...");
-
-    try {
-      const imgRes = await axios.get(fileLink, { responseType: "arraybuffer" });
-      const base64Image = Buffer.from(imgRes.data).toString("base64");
-
-      const model = genai.getGenerativeModel({ model: "gemini-2.0-flash-preview-image-generation" });
-
-      const result = await model.generateContent([
-        {
-          inlineData: {
-            mimeType: "image/jpeg",
-            data: base64Image,
-          },
-        },
-        {
-          text: `Generate an image of this exact character. Keep the face, skin tone, hair, and style exactly the same. Only change based on this prompt: ${sessions[chatId].prompt}`,
-        },
-      ]);
-
-      const parts = result.response.candidates[0].content.parts;
-      for (const part of parts) {
-        if (part.inlineData) {
-          const imgBuffer = Buffer.from(part.inlineData.data, "base64");
-          const imgPath = `/tmp/generated_${chatId}.png`;
-          fs.writeFileSync(imgPath, imgBuffer);
-
-          await bot.sendPhoto(chatId, fs.createReadStream(imgPath), {
-            caption: "🖼 Gambar berhasil dibuat!",
-          });
-
-          fs.unlinkSync(imgPath);
-          break;
-        }
-      }
-    } catch (err) {
-      console.log("IMAGE GEN ERROR:", err.message);
-      bot.sendMessage(chatId, "❌ Gagal generate gambar.");
-    }
+    sessions[chatId].refPhoto = fileLink;
+sessions[chatId].step = "WAITING_PROMPT";
+return bot.sendMessage(chatId, "✏️ Kirim prompt-nya. (contoh: di pantai pakai gaun merah)");
   }
 });
 
@@ -508,18 +470,18 @@ bot.on("callback_query", async (query) => {
   // ==========================
 
   if (query.data === "image_generate") {
-    sessions[chatId] = {
-      step: "WAITING_PROMPT",
-    };
+  sessions[chatId] = {
+    step: "WAITING_REF_PHOTO",
+  };
 
-    return bot.editMessageText(
-      "🖼 Kirim prompt image generate.",
-      {
-        chat_id: chatId,
-        message_id: messageId,
-      }
-    );
-  }
+  return bot.editMessageText(
+    "📸 Kirim foto referensi karakter.",
+    {
+      chat_id: chatId,
+      message_id: messageId,
+    }
+  );
+}
 
   // ==========================
   // UPDATE API KEY
@@ -579,12 +541,36 @@ bot.on("message", async (msg) => {
 
   if (sessions[chatId].step === "WAITING_PROMPT") {
   sessions[chatId].prompt = msg.text;
-  sessions[chatId].step = "WAITING_REF_PHOTO";
+  sessions[chatId].step = null;
 
-  return bot.sendMessage(
-    chatId,
-    "📸 Kirim foto referensi karakter."
-  );
+  await bot.sendMessage(chatId, "⏳ Generating image...");
+
+  try {
+    const imgRes = await axios.get(sessions[chatId].refPhoto, { responseType: "arraybuffer" });
+    const base64Image = Buffer.from(imgRes.data).toString("base64");
+
+    const model = genai.getGenerativeModel({ model: "gemini-2.0-flash-preview-image-generation" });
+
+    const result = await model.generateContent([
+      { inlineData: { mimeType: "image/jpeg", data: base64Image } },
+      { text: `Generate a new image of this exact same person. Strictly maintain: identical face (eyes, nose, mouth, jawline), identical hair (color, length, style), identical skin tone, identical chest/body shape. Do not change the person's identity in any way. Additional scene/style request from user: ${msg.text}` },
+    ]);
+
+    const parts = result.response.candidates[0].content.parts;
+    for (const part of parts) {
+      if (part.inlineData) {
+        const imgBuffer = Buffer.from(part.inlineData.data, "base64");
+        const imgPath = `/tmp/generated_${chatId}.png`;
+        fs.writeFileSync(imgPath, imgBuffer);
+        await bot.sendPhoto(chatId, fs.createReadStream(imgPath), { caption: "🖼 Gambar berhasil dibuat!" });
+        fs.unlinkSync(imgPath);
+        break;
+      }
+    }
+  } catch (err) {
+    console.log("IMAGE GEN ERROR:", err.message);
+    bot.sendMessage(chatId, "❌ Gagal generate gambar.");
+  }
 }
 
   // ==========================
