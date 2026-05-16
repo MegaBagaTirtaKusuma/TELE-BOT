@@ -103,8 +103,11 @@ async function getVideoDuration(filePath) {
 }
 
 async function generateMotionAI(imageUrl, motionVideoUrl, ratio, duration) {
-  const config = JSON.parse(fs.readFileSync("config.json"));
-  const API_KEY = config.freepik_api_key;
+  let API_KEY = process.env.MAGNIFIC_API_KEY;
+try {
+  const config = JSON.parse(fs.readFileSync("/tmp/config.json"));
+  if (config.magnific_api_key) API_KEY = config.magnific_api_key;
+} catch (e) {}
 
   const response = await axios.post(
     "https://api.magnific.com/v1/ai/image-to-video/kling-v2",
@@ -277,8 +280,11 @@ const motionVideoUrl = await bot.getFileLink(
 console.log("MOTION URL:", motionVideoUrl);
 console.log("PHOTO URL:", photoUrl);
 
-const config = JSON.parse(fs.readFileSync("config.json"));
-const API_KEY = config.freepik_api_key;
+let API_KEY = process.env.MAGNIFIC_API_KEY;
+try {
+  const config = JSON.parse(fs.readFileSync("/tmp/config.json"));
+  if (config.magnific_api_key) API_KEY = config.magnific_api_key;
+} catch (e) {}
 
 // Download referensi video dulu untuk cek durasi
 const refVideoPath = path.join(__dirname, `ref_${chatId}.mp4`);
@@ -555,25 +561,17 @@ ${msg.text}
   // UPDATE API KEY
   // ==========================
 
-  if (sessions[chatId].step === "WAITING_API_KEY") {
-    const apiKey = msg.text;
+if (sessions[chatId].step === "WAITING_API_KEY") {
+  const apiKey = msg.text;
 
-    fs.writeFileSync(
-      "config.json",
-      JSON.stringify(
-        {
-          freepik_api_key: apiKey,
-        },
-        null,
-        2
-      )
-    );
+  process.env.MAGNIFIC_API_KEY = apiKey;
+  fs.writeFileSync("/tmp/config.json", JSON.stringify({ magnific_api_key: apiKey }, null, 2));
 
-    sessions[chatId].step = null;
+  sessions[chatId].step = null;
 
-    return bot.sendMessage(
-      chatId,
-      "✅ API key berhasil diupdate!"
-    );
-  }
+  return bot.sendMessage(
+    chatId,
+    "✅ API key berhasil diupdate!"
+  );
+}
 });
