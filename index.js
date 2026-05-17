@@ -226,7 +226,7 @@ bot.on("photo", async (msg) => {
     const imgRes = await axios.get(fileLink, { responseType: "arraybuffer" });
     const base64Image = Buffer.from(imgRes.data).toString("base64");
 
-    const model = genai.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genai.getGenerativeModel({ model: "gemini-2.5-flash" });
     const result = await model.generateContent([
       { inlineData: { mimeType: "image/jpeg", data: base64Image } },
       { text: "Describe this person in extreme detail for image generation: face shape, eye color, nose, lips, skin tone, hair color, hair style, hair length, body type, outfit, accessories. Be very specific and detailed." },
