@@ -539,45 +539,19 @@ bot.on("message", async (msg) => {
   // IMAGE PROMPT
   // ==========================
 
-  if (sessions[chatId].step === "WAITING_PROMPT") {
+if (sessions[chatId].step === "WAITING_PROMPT") {
   sessions[chatId].prompt = msg.text;
   sessions[chatId].step = null;
 
   await bot.sendMessage(chatId, "⏳ Generating image...");
 
   try {
-    const imgRes = await axios.get(sessions[chatId].refPhoto, { responseType: "arraybuffer" });
-const base64Image = Buffer.from(imgRes.data).toString("base64");
+    const prompt = encodeURIComponent(`${msg.text}, highly detailed, realistic, high quality`);
+    const imageUrl = `https://image.pollinations.ai/prompt/${prompt}?width=1024&height=1024&nologo=true`;
 
-const FormData = require("form-data");
-const form = new FormData();
-form.append("prompt", `Generate a new image of this exact same person. Strictly maintain: identical face, identical hair, identical skin tone, identical body. Additional request: ${msg.text}`);
-form.append("image", Buffer.from(base64Image, "base64"), { filename: "image.jpg", contentType: "image/jpeg" });
-form.append("mode", "image-to-image");
-form.append("strength", "0.75");
-form.append("output_format", "png");
-form.append("cfg_scale", "7");
-
-const stabilityRes = await axios.post(
-  "https://api.stability.ai/v2beta/stable-image/generate/sd3",
-  form,
-  {
-    headers: {
-      "Authorization": `Bearer ${process.env.STABILITY_API_KEY}`,
-      "Accept": "application/json",
-      ...form.getHeaders(),
-    },
-  }
-);
-
-const imgBuffer = Buffer.from(stabilityRes.data.image, "base64");
-const imgPath = `/tmp/generated_${chatId}.png`;
-fs.writeFileSync(imgPath, imgBuffer);
-await bot.sendPhoto(chatId, fs.createReadStream(imgPath), { caption: "🖼 Gambar berhasil dibuat!" });
-fs.unlinkSync(imgPath);
+    await bot.sendPhoto(chatId, imageUrl, { caption: "🖼 Gambar berhasil dibuat!" });
   } catch (err) {
     console.log("IMAGE GEN ERROR:", err.message);
-console.log("IMAGE GEN DATA:", JSON.stringify(err.response?.data, null, 2));
     bot.sendMessage(chatId, "❌ Gagal generate gambar.");
   }
 }
