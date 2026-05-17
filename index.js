@@ -556,6 +556,7 @@ form.append("image", Buffer.from(base64Image, "base64"), { filename: "image.jpg"
 form.append("mode", "image-to-image");
 form.append("strength", "0.75");
 form.append("output_format", "png");
+form.append("aspect_ratio", "1:1");
 
 const stabilityRes = await axios.post(
   "https://api.stability.ai/v2beta/stable-image/generate/sd3",
