@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, { apiVersion: "v1alpha" });
+const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const TelegramBot = require("node-telegram-bot-api");
 const fs = require("fs");
 const axios = require("axios");
@@ -549,7 +549,10 @@ bot.on("message", async (msg) => {
     const imgRes = await axios.get(sessions[chatId].refPhoto, { responseType: "arraybuffer" });
     const base64Image = Buffer.from(imgRes.data).toString("base64");
 
-    const model = genai.getGenerativeModel({ model: "gemini-2.0-flash-preview-image-generation" });
+    const model = genai.getGenerativeModel(
+  { model: "gemini-2.0-flash-preview-image-generation" },
+  { apiVersion: "v1alpha" }
+);
 
     const result = await model.generateContent([
       { inlineData: { mimeType: "image/jpeg", data: base64Image } },
