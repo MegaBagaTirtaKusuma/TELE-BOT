@@ -547,29 +547,31 @@ bot.on("message", async (msg) => {
 
   try {
     const imgRes = await axios.get(sessions[chatId].refPhoto, { responseType: "arraybuffer" });
-    const base64Image = Buffer.from(imgRes.data).toString("base64");
+const base64Image = Buffer.from(imgRes.data).toString("base64");
 
-    const model = genai.getGenerativeModel(
-  { model: "gemini-2.0-flash-preview-image-generation" },
-  { apiVersion: "v1alpha" }
+const stabilityRes = await axios.post(
+  "https://api.stability.ai/v2beta/stable-image/generate/sd3",
+  {
+    prompt: `Generate a new image of this exact same person. Strictly maintain: identical face, identical hair, identical skin tone, identical body. Additional request: ${msg.text}`,
+    image: base64Image,
+    mode: "image-to-image",
+    strength: 0.35,
+    output_format: "png",
+  },
+  {
+    headers: {
+      "Authorization": `Bearer ${process.env.STABILITY_API_KEY}`,
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    },
+  }
 );
 
-    const result = await model.generateContent([
-      { inlineData: { mimeType: "image/jpeg", data: base64Image } },
-      { text: `Generate a new image of this exact same person. Strictly maintain: identical face (eyes, nose, mouth, jawline), identical hair (color, length, style), identical skin tone, identical chest/body shape. Do not change the person's identity in any way. Additional scene/style request from user: ${msg.text}` },
-    ]);
-
-    const parts = result.response.candidates[0].content.parts;
-    for (const part of parts) {
-      if (part.inlineData) {
-        const imgBuffer = Buffer.from(part.inlineData.data, "base64");
-        const imgPath = `/tmp/generated_${chatId}.png`;
-        fs.writeFileSync(imgPath, imgBuffer);
-        await bot.sendPhoto(chatId, fs.createReadStream(imgPath), { caption: "🖼 Gambar berhasil dibuat!" });
-        fs.unlinkSync(imgPath);
-        break;
-      }
-    }
+const imgBuffer = Buffer.from(stabilityRes.data.image, "base64");
+const imgPath = `/tmp/generated_${chatId}.png`;
+fs.writeFileSync(imgPath, imgBuffer);
+await bot.sendPhoto(chatId, fs.createReadStream(imgPath), { caption: "🖼 Gambar berhasil dibuat!" });
+fs.unlinkSync(imgPath);
   } catch (err) {
     console.log("IMAGE GEN ERROR:", err.message);
     bot.sendMessage(chatId, "❌ Gagal generate gambar.");
