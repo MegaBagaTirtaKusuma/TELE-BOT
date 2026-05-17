@@ -138,7 +138,7 @@ async function pollUntilDone(taskId, apiKey) {
       `https://api.magnific.com/v1/ai/image-to-video/kling-v2/${taskId}`,
       { headers: { "x-magnific-api-key": apiKey } }
     );
-    console.log("STATUS POLL:", JSON.stringify(statusRes.data, null, 2));
+    // console.log("STATUS POLL:", JSON.stringify(statusRes.data, null, 2));
     if (statusRes.data?.data?.status === "COMPLETED") {
       videoUrl = statusRes.data?.data?.generated?.[0];
     }
