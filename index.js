@@ -217,13 +217,31 @@ bot.on("photo", async (msg) => {
   // IMAGE GENERATE PHOTO
   // ==========================
   if (sessions[chatId].step === "WAITING_REF_PHOTO") {
-    const photo = msg.photo[msg.photo.length - 1];
-    const fileLink = await bot.getFileLink(photo.file_id);
+  const photo = msg.photo[msg.photo.length - 1];
+  const fileLink = await bot.getFileLink(photo.file_id);
 
-    sessions[chatId].refPhoto = fileLink;
-sessions[chatId].step = "WAITING_PROMPT";
-return bot.sendMessage(chatId, "✏️ Kirim prompt-nya. (contoh: di pantai pakai gaun merah)");
+  await bot.sendMessage(chatId, "⏳ Menganalisis foto...");
+
+  try {
+    const imgRes = await axios.get(fileLink, { responseType: "arraybuffer" });
+    const base64Image = Buffer.from(imgRes.data).toString("base64");
+
+    const model = genai.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent([
+      { inlineData: { mimeType: "image/jpeg", data: base64Image } },
+      { text: "Describe this person in extreme detail for image generation: face shape, eye color, nose, lips, skin tone, hair color, hair style, hair length, body type, outfit, accessories. Be very specific and detailed." },
+    ]);
+
+    const description = result.response.text();
+    sessions[chatId].refDescription = description;
+    sessions[chatId].step = "WAITING_PROMPT";
+
+    return bot.sendMessage(chatId, "✅ Foto dianalisis! Sekarang kirim prompt tambahan.\n\n(contoh: di pantai pakai gaun merah)");
+  } catch (err) {
+    console.log("ANALYZE ERROR:", err.message);
+    bot.sendMessage(chatId, "❌ Gagal analisis foto.");
   }
+}
 });
 
 bot.on("video", async (msg) => {
@@ -546,7 +564,8 @@ if (sessions[chatId].step === "WAITING_PROMPT") {
   await bot.sendMessage(chatId, "⏳ Generating image...");
 
   try {
-    const prompt = encodeURIComponent(`${msg.text}, highly detailed, realistic, high quality`);
+    const fullPrompt = `${sessions[chatId].refDescription || ""}, ${msg.text}, highly detailed, realistic, high quality`;
+const prompt = encodeURIComponent(fullPrompt);
     const imageUrl = `https://image.pollinations.ai/prompt/${prompt}?width=1024&height=1024&nologo=true`;
 
     await bot.sendPhoto(chatId, imageUrl, { caption: "🖼 Gambar berhasil dibuat!" });
