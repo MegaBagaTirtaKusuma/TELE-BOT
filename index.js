@@ -554,7 +554,7 @@ const form = new FormData();
 form.append("prompt", `Generate a new image of this exact same person. Strictly maintain: identical face, identical hair, identical skin tone, identical body. Additional request: ${msg.text}`);
 form.append("image", Buffer.from(base64Image, "base64"), { filename: "image.jpg", contentType: "image/jpeg" });
 form.append("mode", "image-to-image");
-form.append("strength", "0.35");
+form.append("strength", "0.75");
 form.append("output_format", "png");
 
 const stabilityRes = await axios.post(
