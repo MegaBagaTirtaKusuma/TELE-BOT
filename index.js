@@ -574,6 +574,7 @@ await bot.sendPhoto(chatId, fs.createReadStream(imgPath), { caption: "🖼 Gamba
 fs.unlinkSync(imgPath);
   } catch (err) {
     console.log("IMAGE GEN ERROR:", err.message);
+console.log("IMAGE GEN DATA:", JSON.stringify(err.response?.data, null, 2));
     bot.sendMessage(chatId, "❌ Gagal generate gambar.");
   }
 }
