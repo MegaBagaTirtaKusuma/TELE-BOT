@@ -549,20 +549,22 @@ bot.on("message", async (msg) => {
     const imgRes = await axios.get(sessions[chatId].refPhoto, { responseType: "arraybuffer" });
 const base64Image = Buffer.from(imgRes.data).toString("base64");
 
+const FormData = require("form-data");
+const form = new FormData();
+form.append("prompt", `Generate a new image of this exact same person. Strictly maintain: identical face, identical hair, identical skin tone, identical body. Additional request: ${msg.text}`);
+form.append("image", Buffer.from(base64Image, "base64"), { filename: "image.jpg", contentType: "image/jpeg" });
+form.append("mode", "image-to-image");
+form.append("strength", "0.35");
+form.append("output_format", "png");
+
 const stabilityRes = await axios.post(
   "https://api.stability.ai/v2beta/stable-image/generate/sd3",
-  {
-    prompt: `Generate a new image of this exact same person. Strictly maintain: identical face, identical hair, identical skin tone, identical body. Additional request: ${msg.text}`,
-    image: base64Image,
-    mode: "image-to-image",
-    strength: 0.35,
-    output_format: "png",
-  },
+  form,
   {
     headers: {
       "Authorization": `Bearer ${process.env.STABILITY_API_KEY}`,
-      "Content-Type": "application/json",
       "Accept": "application/json",
+      ...form.getHeaders(),
     },
   }
 );
