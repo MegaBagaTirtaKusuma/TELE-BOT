@@ -316,26 +316,8 @@ await new Promise((resolve, reject) => {
   writer.on("error", reject);
 });
 
-// Cek durasi video referensi
-const refDuration = await getVideoDuration(refVideoPath);
-console.log("REF DURATION:", refDuration);
-
 // Hitung berapa segment yang dibutuhkan
-const segments = [];
-let remaining = refDuration;
-while (remaining > 0) {
-  if (remaining >= 10) {
-    segments.push("10");
-    remaining -= 10;
-  } else if (remaining >= 5) {
-    segments.push("5");
-    remaining -= 5;
-  } else {
-    segments.push("5");
-    remaining = 0;
-  }
-}
-
+const segments = ["30"];
 console.log("SEGMENTS:", segments);
 
 // Generate tiap segment
