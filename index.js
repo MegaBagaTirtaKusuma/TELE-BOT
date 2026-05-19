@@ -316,17 +316,19 @@ await new Promise((resolve, reject) => {
   writer.on("error", reject);
 });
 
-// Hitung berapa segment yang dibutuhkan
-const segments = ["30"];
+// Hitung berapa segment yang dibutuhkan (10s + 5s)
+const segments = ["10", "5"];
 console.log("SEGMENTS:", segments);
 
 // Generate tiap segment
 const segmentPaths = [];
+let currentImageUrl = photoUrl; // Gunakan variabel dinamis untuk referensi gambar awal
+
 for (let i = 0; i < segments.length; i++) {
-  console.log(`GENERATING SEGMENT ${i + 1}/${segments.length}`);
+  console.log(`GENERATING SEGMENT ${i + 1}/${segments.length} (Durasi: ${segments[i]}s)`);
 
   const result = await generateMotionAI(
-    photoUrl,
+    currentImageUrl,
     motionVideoUrl,
     sessions[chatId].ratio,
     segments[i]
@@ -346,6 +348,45 @@ for (let i = 0; i < segments.length; i++) {
   });
 
   segmentPaths.push(segPath);
+
+  // ==========================================
+  // LAST FRAME CONTINUATION LOGIC
+  // ==========================================
+  
+  // Ekstrak frame terakhir jika ini bukan segmen terakhir
+  if (i < segments.length - 1) {
+    console.log("Mengekstrak frame terakhir untuk sambungan video berikutnya...");
+    const lastFramePath = path.join(__dirname, `last_frame_${chatId}_${i}.jpg`);
+
+    // 1. Ambil frame paling ujung pakai FFmpeg (POSISI YANG BENAR)
+    await new Promise((resolve, reject) => {
+      ffmpeg(segPath)
+        .inputOptions(["-sseof", "-3"]) // <-- Perbaikan ada di sini
+        .outputOptions([
+          "-update", "1",
+          "-q:v", "1"
+        ])
+        .output(lastFramePath)
+        .on("end", resolve)
+        .on("error", reject)
+        .run();
+    });
+
+    // 2. Trik mendapatkan URL Publik: Upload sementara ke chat Telegram user
+    const tempMsg = await bot.sendPhoto(chatId, fs.createReadStream(lastFramePath), {
+      disable_notification: true,
+    });
+    
+    // 3. Ambil URL file dari Telegram untuk dikirim ke Magnific API di loop berikutnya
+    const tempFileId = tempMsg.photo[tempMsg.photo.length - 1].file_id;
+    currentImageUrl = await bot.getFileLink(tempFileId);
+
+    // 4. Bersihkan chat dari gambar sementara agar rapi
+    bot.deleteMessage(chatId, tempMsg.message_id).catch(() => console.log("Gagal hapus pesan sementara"));
+    
+    // 5. Hapus file gambar last_frame lokal agar tidak nyampah
+    if (fs.existsSync(lastFramePath)) fs.unlinkSync(lastFramePath);
+  }
 }
 
 // Gabungkan semua segment
