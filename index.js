@@ -9,7 +9,7 @@ const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
 ffmpeg.setFfmpegPath(ffmpegPath);
 const ffprobePath = require("ffprobe-static").path;
-console.log("FFPROBE PATH:", ffprobePath);
+ffmpeg.setFfprobePath(ffprobePath);
 const path = require("path");
 
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, {
