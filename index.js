@@ -317,7 +317,7 @@ await new Promise((resolve, reject) => {
 });
 
 // Hitung berapa segment yang dibutuhkan (10s + 5s)
-const segments = ["10", "5"];
+const segments = ["10"];
 console.log("SEGMENTS:", segments);
 
 // Generate tiap segment
