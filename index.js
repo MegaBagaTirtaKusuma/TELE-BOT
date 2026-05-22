@@ -114,11 +114,13 @@ try {
   const response = await axios.post(
     "https://api.magnific.com/v1/ai/image-to-video/kling-v2",
     {
-      image: imageUrl,
-      motion_video: motionVideoUrl,
-      ratio: ratio,
-      duration: duration,
-    },
+  image: imageUrl,
+  motion_video: motionVideoUrl,
+  ratio: ratio,
+  duration: duration,
+  cfg_scale: 0.9,
+  prompt: "STRICT MOTION REFERENCE MODE. Follow the reference video motion exactly. Copy the original movement sequence precisely. Maintain: exact body movement, exact pose transitions, exact hand movement, exact head movement, exact walking rhythm, exact timing, exact speed, exact choreography, exact motion trajectory. Frame-by-frame motion consistency. High motion adherence. High temporal consistency. Preserve original motion dynamics. Do not generate new actions. Do not add cinematic motion. Do not change pacing. Do not alter choreography. Do not improvise movement. The generated video must feel like the same motion performance from the reference video. Ultra realistic. Natural human motion.",
+},
     {
       headers: {
         "x-magnific-api-key": API_KEY,
@@ -316,19 +318,16 @@ await new Promise((resolve, reject) => {
   writer.on("error", reject);
 });
 
-// Hitung berapa segment yang dibutuhkan (10s + 5s)
 const segments = ["10"];
 console.log("SEGMENTS:", segments);
 
-// Generate tiap segment
 const segmentPaths = [];
-let currentImageUrl = photoUrl; // Gunakan variabel dinamis untuk referensi gambar awal
 
 for (let i = 0; i < segments.length; i++) {
-  console.log(`GENERATING SEGMENT ${i + 1}/${segments.length} (Durasi: ${segments[i]}s)`);
+  console.log(`GENERATING SEGMENT ${i + 1}/${segments.length}`);
 
   const result = await generateMotionAI(
-    currentImageUrl,
+    photoUrl,
     motionVideoUrl,
     sessions[chatId].ratio,
     segments[i]
@@ -337,7 +336,6 @@ for (let i = 0; i < segments.length; i++) {
   const taskId = result.data.task_id;
   const videoUrl = await pollUntilDone(taskId, API_KEY);
 
-  // Download segment
   const segPath = path.join(__dirname, `seg_${chatId}_${i}.mp4`);
   const segRes = await axios.get(videoUrl, { responseType: "stream" });
   await new Promise((resolve, reject) => {
@@ -348,45 +346,6 @@ for (let i = 0; i < segments.length; i++) {
   });
 
   segmentPaths.push(segPath);
-
-  // ==========================================
-  // LAST FRAME CONTINUATION LOGIC
-  // ==========================================
-  
-  // Ekstrak frame terakhir jika ini bukan segmen terakhir
-  if (i < segments.length - 1) {
-    console.log("Mengekstrak frame terakhir untuk sambungan video berikutnya...");
-    const lastFramePath = path.join(__dirname, `last_frame_${chatId}_${i}.jpg`);
-
-    // 1. Ambil frame paling ujung pakai FFmpeg (POSISI YANG BENAR)
-    await new Promise((resolve, reject) => {
-      ffmpeg(segPath)
-        .inputOptions(["-sseof", "-3"]) // <-- Perbaikan ada di sini
-        .outputOptions([
-          "-update", "1",
-          "-q:v", "1"
-        ])
-        .output(lastFramePath)
-        .on("end", resolve)
-        .on("error", reject)
-        .run();
-    });
-
-    // 2. Trik mendapatkan URL Publik: Upload sementara ke chat Telegram user
-    const tempMsg = await bot.sendPhoto(chatId, fs.createReadStream(lastFramePath), {
-      disable_notification: true,
-    });
-    
-    // 3. Ambil URL file dari Telegram untuk dikirim ke Magnific API di loop berikutnya
-    const tempFileId = tempMsg.photo[tempMsg.photo.length - 1].file_id;
-    currentImageUrl = await bot.getFileLink(tempFileId);
-
-    // 4. Bersihkan chat dari gambar sementara agar rapi
-    bot.deleteMessage(chatId, tempMsg.message_id).catch(() => console.log("Gagal hapus pesan sementara"));
-    
-    // 5. Hapus file gambar last_frame lokal agar tidak nyampah
-    if (fs.existsSync(lastFramePath)) fs.unlinkSync(lastFramePath);
-  }
 }
 
 // Gabungkan semua segment
